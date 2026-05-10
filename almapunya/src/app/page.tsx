@@ -1,11 +1,9 @@
 import React from 'react'
-import Navbar from './Navbar/page'
-import TampilanAwal from './TampilanAwal/page'
-
+import UserPage from './UserPage/page'
 export default function page() {
   return (
     <div>
-      <TampilanAwal/>
+      <UserPage/>
     </div>
   )
 }
