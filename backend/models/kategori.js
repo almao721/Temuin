@@ -14,6 +14,29 @@ const kategoriModel = {
       [id]
     );
     return rows[0];
+  },
+  
+  create: async (data) => {
+    const { nama_kategori, deskripsi, icon_url } = data;
+    const [result] = await db.execute(
+      'INSERT INTO kategori (nama_kategori, deskripsi, icon_url, status) VALUES (?, ?, ?, 1)',
+      [nama_kategori, deskripsi, icon_url]
+    );
+    return result;
+  },
+  
+  update: async (id, data) => {
+    const { nama_kategori, deskripsi, icon_url, status } = data;
+    const [result] = await db.execute(
+      'UPDATE kategori SET nama_kategori = ?, deskripsi = ?, icon_url = ?, status = ? WHERE id = ?',
+      [nama_kategori, deskripsi, icon_url, status, id]
+    );
+    return result;
+  },
+  
+  delete: async (id) => {
+    const [result] = await db.execute('DELETE FROM kategori WHERE id = ?', [id]);
+    return result;
   }
 };
 
