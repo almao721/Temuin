@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Import models
+// Import models - path ke folder models (../models)
 const UserModel = require('../models/userModel');
 const LokasiModel = require('../models/lokasi');
 const KategoriModel = require('../models/kategori');
@@ -267,7 +267,7 @@ router.get('/api/laporan/:id', async (req, res) => {
   }
 });
 
-// Route laporan penemuan
+// ✅ FIXED: Route laporan penemuan
 router.post('/api/laporan/penemuan', verifyToken, upload.single('foto_barang'), async (req, res) => {
   try {
     const {
@@ -281,10 +281,12 @@ router.post('/api/laporan/penemuan', verifyToken, upload.single('foto_barang'), 
     
     const user_id = req.user.user_id;
     
+    // Validasi field wajib
     if (!nama_barang || !kategori_id || !lokasi_id || !waktu_insiden) {
-      return response.error(res, 'Field wajib tidak boleh kosong', 400);
+      return response.error(res, 'Field wajib tidak boleh kosong (nama_barang, kategori_id, lokasi_id, waktu_insiden)', 400);
     }
 
+    // ✅ FIX 1: Parse ke integer supaya FK tidak gagal
     const lokasi_id_int = parseInt(lokasi_id);
     const kategori_id_int = parseInt(kategori_id);
 
@@ -292,26 +294,30 @@ router.post('/api/laporan/penemuan', verifyToken, upload.single('foto_barang'), 
       return response.error(res, 'lokasi_id dan kategori_id harus berupa angka', 400);
     }
 
+    // ✅ FIX 2: Validasi lokasi ada di database
     const lokasi = await LokasiModel.findById(lokasi_id_int);
     if (!lokasi) {
-      return response.error(res, `Lokasi dengan id ${lokasi_id_int} tidak ditemukan`, 404);
+      return response.error(res, `Lokasi dengan id ${lokasi_id_int} tidak ditemukan. Cek GET /api/lokasi untuk daftar lokasi yang tersedia.`, 404);
     }
 
+    // ✅ FIX 3: Validasi kategori ada di database
     const kategori = await KategoriModel.findById(kategori_id_int);
     if (!kategori) {
-      return response.error(res, `Kategori dengan id ${kategori_id_int} tidak ditemukan`, 404);
+      return response.error(res, `Kategori dengan id ${kategori_id_int} tidak ditemukan. Cek GET /api/kategori untuk daftar kategori yang tersedia.`, 404);
     }
     
+    // Insert ke tabel laporan utama
     const laporanResult = await LaporanModel.createMain({
       tipe_laporan: 'penemuan',
-      lokasi_id: lokasi_id_int,
+      lokasi_id: lokasi_id_int,     // ✅ integer
       user_id,
-      kategori_id: kategori_id_int
+      kategori_id: kategori_id_int  // ✅ integer
     });
     
     const laporan_id = laporanResult.insertId;
     const foto_barang = req.file ? `/uploads/${req.file.filename}` : null;
     
+    // Insert ke tabel laporan_penemuan
     await LaporanPenemuanModel.create({
       nama_barang,
       kategori: req.body.kategori || 'lainnya',
@@ -325,12 +331,12 @@ router.post('/api/laporan/penemuan', verifyToken, upload.single('foto_barang'), 
     response.success(res, { laporan_id }, 'Laporan penemuan berhasil dibuat', 201);
     
   } catch (error) {
-    console.error(error);
+    console.error('ERROR /api/laporan/penemuan:', error);
     response.error(res, 'Terjadi kesalahan pada server', 500, error.message);
   }
 });
 
-// Route laporan kehilangan
+// ✅ FIXED: Route laporan kehilangan
 router.post('/api/laporan/kehilangan', verifyToken, async (req, res) => {
   try {
     const {
@@ -343,10 +349,12 @@ router.post('/api/laporan/kehilangan', verifyToken, async (req, res) => {
     
     const user_id = req.user.user_id;
     
+    // Validasi field wajib
     if (!barang_tipe || !kategori_id || !lokasi_id || !waktu_insiden) {
-      return response.error(res, 'Field wajib tidak boleh kosong', 400);
+      return response.error(res, 'Field wajib tidak boleh kosong (barang_tipe, kategori_id, lokasi_id, waktu_insiden)', 400);
     }
 
+    // ✅ FIX 1: Parse ke integer
     const lokasi_id_int = parseInt(lokasi_id);
     const kategori_id_int = parseInt(kategori_id);
 
@@ -354,25 +362,29 @@ router.post('/api/laporan/kehilangan', verifyToken, async (req, res) => {
       return response.error(res, 'lokasi_id dan kategori_id harus berupa angka', 400);
     }
 
+    // ✅ FIX 2: Validasi lokasi ada di database
     const lokasi = await LokasiModel.findById(lokasi_id_int);
     if (!lokasi) {
-      return response.error(res, `Lokasi dengan id ${lokasi_id_int} tidak ditemukan`, 404);
+      return response.error(res, `Lokasi dengan id ${lokasi_id_int} tidak ditemukan. Cek GET /api/lokasi untuk daftar lokasi yang tersedia.`, 404);
     }
 
+    // ✅ FIX 3: Validasi kategori ada di database
     const kategori = await KategoriModel.findById(kategori_id_int);
     if (!kategori) {
-      return response.error(res, `Kategori dengan id ${kategori_id_int} tidak ditemukan`, 404);
+      return response.error(res, `Kategori dengan id ${kategori_id_int} tidak ditemukan. Cek GET /api/kategori untuk daftar kategori yang tersedia.`, 404);
     }
     
+    // Insert ke tabel laporan utama
     const laporanResult = await LaporanModel.createMain({
       tipe_laporan: 'kehilangan',
-      lokasi_id: lokasi_id_int,
+      lokasi_id: lokasi_id_int,     // ✅ integer
       user_id,
-      kategori_id: kategori_id_int
+      kategori_id: kategori_id_int  // ✅ integer
     });
     
     const laporan_id = laporanResult.insertId;
     
+    // Insert ke tabel laporan_kehilangan
     await LaporanKehilanganModel.create({
       barang_tipe,
       keterangan_lainnya,
@@ -383,7 +395,7 @@ router.post('/api/laporan/kehilangan', verifyToken, async (req, res) => {
     response.success(res, { laporan_id }, 'Laporan kehilangan berhasil dibuat', 201);
     
   } catch (error) {
-    console.error(error);
+    console.error('ERROR /api/laporan/kehilangan:', error);
     response.error(res, 'Terjadi kesalahan pada server', 500, error.message);
   }
 });
