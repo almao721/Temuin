@@ -1,8 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 13, "column": 0}, "map": {"version":3,"sources":["file:///D:/temuin/src/app/favicon.ico.mjs%20%28structured%20image%20object%29"],"sourcesContent":["import src from \"IMAGE\";\nexport default { src, width: 256, height: 256 }\n"],"names":["src","width","height"],"mappings":";;;;AAAA;;uCACe;IAAEA,KAAAA,0IAAG;IAAEC,OAAO;IAAKC,QAAQ;AAAI"}},
-    {"offset": {"line": 28, "column": 0}, "map": {"version":3,"sources":["file:///D:/temuin/src/app/Temuin/app.tsx"],"sourcesContent":["import React from 'react'\r\nimport Beranda from '../Temuin/Beranda/app'\r\nimport Navbar from './'\r\n\r\nexport default function app() {\r\n  return (\r\n    <div className='bg-[#561C24] h-screen'>\r\n        <Navbar/>\r\n    </div>\r\n  )\r\n}\r\n"],"names":["app","className","Navbar"],"mappings":";;;;;;;;;;;;AAIe,SAASA;IACtB,qBACE,8OAAC;QAAIC,WAAU;kBACX,cAAA,8OAACC;;;;;;;;;;AAGT"}},
-    {"offset": {"line": 58, "column": 0}, "map": {"version":3,"sources":["file:///D:/temuin/src/app/page.tsx"],"sourcesContent":["import React from 'react'\nimport Temuin from \"./Temuin/app\"\n\nexport default function page() {\n  return (\n    <div>\n      <Temuin/>\n    </div>\n  )\n}\n"],"names":["page"],"mappings":";;;;;AACA;;;AAEe,SAASA;IACtB,qBACE,8OAAC;kBACC,cAAA,8OAAC,uIAAM;;;;;;;;;;AAGb"}}]
-}
