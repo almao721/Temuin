@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
   House,
   SearchX,
@@ -17,13 +17,20 @@ import {
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
-  const admin = {
-    name: "Martin Edwards",
-    role: "Administrator",
-    photo: "/Assets/martinicon.jpg",
-  };
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        setUser(JSON.parse(userData));
+      } catch (e) {
+        console.error("Gagal parse user data", e);
+      }
+    }
+  }, []);
 
   const menus = [
     {
@@ -57,8 +64,14 @@ export default function Navbar() {
     if (href === "/AdminPage") {
       return pathname === "/AdminPage";
     }
-
     return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("isLoggedIn");
+    router.push("/login");
   };
 
   return (
@@ -135,8 +148,8 @@ export default function Navbar() {
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3.5 shadow-sm duration-300 hover:scale-[1.03] hover:shadow-md">
               <div className="flex items-center gap-3.5">
                 <Image
-                  src={admin.photo}
-                  alt={admin.name}
+                  src="/Assets/martinicon.jpg"
+                  alt="Bu Yuni"
                   width={48}
                   height={48}
                   className="h-[48px] w-[48px] shrink-0 rounded-full border-2 border-[#8D303C] object-cover"
@@ -148,16 +161,20 @@ export default function Navbar() {
                   </p>
 
                   <h3 className="truncate text-[13px] font-semibold tracking-wide text-gray-900">
-                    {admin.name}
+                    Bu Yuni
                   </h3>
 
                   <p className="truncate text-[11px] font-medium text-gray-500">
-                    {admin.role}
+                    Administrator
                   </p>
                 </div>
               </div>
 
-              <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#8D303C] px-3 py-2.5 text-xs font-medium tracking-wide text-white duration-300 hover:scale-[1.04] hover:bg-[#742630] hover:shadow-md active:scale-95">
+              {/* TOMBOL LOGOUT */}
+              <button
+                onClick={handleLogout}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#8D303C] px-3 py-2.5 text-xs font-medium tracking-wide text-white duration-300 hover:scale-[1.04] hover:bg-[#742630] hover:shadow-md active:scale-95"
+              >
                 <LogOut size={16} />
                 Logout
               </button>

@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS kategori (
   nama_kategori VARCHAR(100) NOT NULL,
   deskripsi     TEXT         DEFAULT NULL,
   icon_url      VARCHAR(255) DEFAULT NULL,
+  pertanyaan    TEXT         DEFAULT NULL,
   status        TINYINT(1)   NOT NULL DEFAULT 1,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB;
@@ -126,7 +127,9 @@ INSERT IGNORE INTO kategori (id, nama_kategori, deskripsi) VALUES
   (3, 'Dompet & Tas', 'Dompet, tas, koper, dll'),
   (4, 'Buku',      'Buku pelajaran, buku tulis, dll'),
   (5, 'Pakaian',   'Seragam, jaket, topi, dll'),
-  (6, 'Lainnya',   'Barang lain yang tidak terkategori');
+  (6, 'Lainnya',   'Barang lain yang tidak terkategori'),
+  (7, 'Pribadi',   'Barang pribadi seperti dompet, kunci, identitas'),
+  (8, 'Kunci',     'Kunci motor, rumah, atau brankas');
 
 -- Akun admin default (password: admin123)
 INSERT IGNORE INTO user (nis_nip, password, role, is_active) VALUES

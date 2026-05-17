@@ -1,26 +1,46 @@
 const db = require('../src/config/db');
 
+const parsePertanyaan = (pertanyaan) => {
+  if (!pertanyaan) return [];
+  if (Array.isArray(pertanyaan)) return pertanyaan;
+
+  try {
+    return JSON.parse(pertanyaan);
+  } catch {
+    return [];
+  }
+};
+
 const kategoriModel = {
   getAll: async () => {
     const [rows] = await db.execute(
-      'SELECT id, nama_kategori, deskripsi, icon_url, status FROM kategori WHERE status = 1 ORDER BY nama_kategori'
+      'SELECT id, nama_kategori, deskripsi, pertanyaan, status FROM kategori WHERE status = 1 ORDER BY nama_kategori ASC'
     );
-    return rows;
-  },
-
-  getAllAdmin: async () => {
-    const [rows] = await db.execute(
-      'SELECT id, nama_kategori, deskripsi, icon_url, status FROM kategori ORDER BY nama_kategori'
-    );
-    return rows;
+    return rows.map((row) => ({
+      id: row.id,
+      nama_kategori: row.nama_kategori,
+      deskripsi: row.deskripsi,
+      status: row.status,
+      pertanyaan: parsePertanyaan(row.pertanyaan),
+    }));
   },
 
   findById: async (id) => {
     const [rows] = await db.execute(
-      'SELECT id, nama_kategori, deskripsi, icon_url, status FROM kategori WHERE id = ?',
+      'SELECT id, nama_kategori, deskripsi, icon_url, pertanyaan, status FROM kategori WHERE id = ?',
       [id]
     );
-    return rows[0];
+    const row = rows[0];
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      nama_kategori: row.nama_kategori,
+      deskripsi: row.deskripsi,
+      icon_url: row.icon_url,
+      status: row.status,
+      pertanyaan: parsePertanyaan(row.pertanyaan),
+    };
   },
 
   create: async ({ nama_kategori, deskripsi, icon_url }) => {
@@ -39,8 +59,17 @@ const kategoriModel = {
     return result;
   },
 
+  // TAMBAHAN: method untuk update pertanyaan
+  updatePertanyaan: async (kategoriId, pertanyaan) => {
+    const pertanyaanJson = JSON.stringify(pertanyaan);
+    const [result] = await db.execute(
+      'UPDATE kategori SET pertanyaan = ? WHERE id = ?',
+      [pertanyaanJson, kategoriId]
+    );
+    return result;
+  },
+
   delete: async (id) => {
-    // Soft delete (nonaktifkan)
     const [result] = await db.execute('UPDATE kategori SET status=0 WHERE id=?', [id]);
     return result;
   },

@@ -1,4 +1,4 @@
-const LokasiModel = require('../../models/Lokasi');
+const LokasiModel = require('../../models/lokasi');
 const response = require('../../utils/response');
 
 const lokasiController = {

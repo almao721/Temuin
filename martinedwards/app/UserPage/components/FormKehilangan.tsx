@@ -1,7 +1,7 @@
 "use client";
 
 import { Send, ChevronDown, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PopupThxGiving from "../components/PopupThxGiving"; 
 
 const lokasiList = [
@@ -57,11 +57,11 @@ const formConfig: Record<string, any> = {
   pakaian: { 
     questions: [
       { id: "jenis", label: "Jenis Pakaian?", type: "text", placeholder: "Contoh: Jaket Hoodie" },
-      { id: "warna", label: "Warna Dominan?", type: "text" },
-      { id: "ukuran", label: "Ukuran?", type: "text", placeholder: "L, XL, dll" },
-      { id: "merk_logo", label: "Logo/Tulisan?", type: "text", placeholder: "Contoh: Logo SMK Telkom" },
+      { id: "warna", label: "Warna Dominan?", type: "text", placeholder: "Contoh: Hitam" },
+      { id: "ukuran", label: "Ukuran?", type: "text", placeholder: "L, XL" },
+      { id: "merk_logo", label: "Logo/Tulisan?", type: "text", placeholder: "Contoh: Logo SMK" },
       { id: "lokasi", label: "Lokasi Terakhir Terlihat?", type: "select", options: lokasiList },
-      { id: "kondisi", label: "Kondisi Barang?", type: "text", placeholder: "Contoh: Ada noda di lengan" }
+      { id: "kondisi", label: "Kondisi Barang?", type: "text", placeholder: "Contoh: Ada noda" }
     ] 
   },
   lainnya: { 
@@ -80,6 +80,20 @@ export default function FormKehilangan({ initialKategori }: { initialKategori: s
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPopup, setShowPopup] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [userId, setUserId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setUserId(user.user_id);
+      } catch (e) {
+        console.error("Gagal parse user", e);
+      }
+    }
+  }, []);
 
   const catKey = initialKategori?.toLowerCase();
   const currentForm = formConfig[catKey] || formConfig["lainnya"];
@@ -95,16 +109,52 @@ export default function FormKehilangan({ initialKategori }: { initialKategori: s
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) {
-      setShowPopup(true);
+    if (!validate()) return;
+    if (!userId) {
+      alert("Anda belum login. Silakan login kembali.");
+      window.location.href = "/Login";
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    // Siapkan payload
+    const payload = {
+      barang_tipe: initialKategori,
+      lokasi_nama: formData.lokasi || "",
+      waktu_insiden: new Date().toISOString(),
+      keterangan_lainnya: JSON.stringify(formData),
+    };
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:5000/api/laporan/kehilangan", { // Sesuaikan dengan port backend Anda
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        setShowPopup(true);
+      } else {
+        const errorText = await response.text();
+        alert(`Gagal menyimpan laporan: ${errorText}`);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Gagal terhubung ke server. Pastikan backend berjalan.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="w-full max-w-2xl mx-auto p-4 relative">
-      {/* 1. POPUP DENGAN PROPS FIX */}
       <PopupThxGiving 
         isOpen={showPopup} 
         onClose={() => setShowPopup(false)} 
@@ -134,7 +184,6 @@ export default function FormKehilangan({ initialKategori }: { initialKategori: s
                   <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-[#561C24] pointer-events-none" />
                 </div>
               ) : q.type === "boolean" ? (
-                /* 2. OPSI BUNDAR SEBARIS */
                 <div className="flex flex-row gap-10 p-2">
                   {["Ya", "Tidak"].map((option) => (
                     <label key={option} className="flex items-center group cursor-pointer">
@@ -185,10 +234,11 @@ export default function FormKehilangan({ initialKategori }: { initialKategori: s
 
           <button
             type="submit"
-            className="w-full bg-[#8B3039] text-white py-5 rounded-2xl font-bold text-lg shadow-[6px_6px_0px_#561C24] hover:bg-[#561C24] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2 border-2 border-[#561C24] uppercase mt-6"
+            disabled={isSubmitting}
+            className="w-full bg-[#8B3039] text-white py-5 rounded-2xl font-bold text-lg shadow-[6px_6px_0px_#561C24] hover:bg-[#561C24] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2 border-2 border-[#561C24] uppercase mt-6 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             <Send size={18} />
-            Kirim Laporan
+            {isSubmitting ? "Mengirim..." : "Kirim Laporan"}
           </button>
         </form>
       </div>

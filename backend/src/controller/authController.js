@@ -8,8 +8,8 @@ const authController = {
     try {
       const { nis_nip, password } = req.body;
       
-      if (!nis_nip || !password) {
-        return response.error(res, 'NIS/NIP dan password wajib diisi', 400);
+      if (!/^\d+$/.test(nis_nip)) {
+        return response.error(res, 'NIS/NIP hanya boleh berisi angka', 400);
       }
       
       const user = await UserModel.findByNisNip(nis_nip);
@@ -51,11 +51,11 @@ const authController = {
   
   register: async (req, res) => {
     try {
-      const { nis_nip, password, role = 'siswa' } = req.body;
-      
-      if (!nis_nip || !password) {
-        return response.error(res, 'NIS/NIP dan password wajib diisi', 400);
-      }
+          const { nis_nip, password, role = 'siswa' } = req.body;
+
+      if (!/^\d+$/.test(nis_nip)) {
+        return response.error(res, 'NIS/NIP hanya boleh berisi angka', 400);
+}
       
       const existingUser = await UserModel.findByNisNip(nis_nip);
       if (existingUser) {

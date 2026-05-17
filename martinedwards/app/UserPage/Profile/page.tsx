@@ -4,15 +4,32 @@ import { useEffect, useState } from "react";
 import { User, LogOut, ChevronRight } from "lucide-react";
 import UserShell from "../components/UserShell";
 
+interface UserData {
+  user_id: number;
+  nis_nip: string;
+  role: string;
+}
+
 export default function ProfilePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<UserData | null>(null);
 
   useEffect(() => {
     const status = localStorage.getItem("isLoggedIn");
     if (status === "true") {
       setIsLoggedIn(true);
     } else {
-      window.location.href = "/Login";
+      window.location.href = "/login";
+      return;
+    }
+
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        setUser(null);
+      }
     }
   }, []);
 
@@ -37,12 +54,12 @@ export default function ProfilePage() {
               {/* NAMA & NIS (SEJAJAR) */}
               <div className="flex flex-col justify-center">
                 <h2 className="text-2xl font-bold text-black leading-tight tracking-tight">
-                  Martin Edwards
+                  {user ? `Pengguna #${user.user_id}` : 'Pengguna'}
                 </h2>
                 <div className="mt-2 flex items-center gap-2">
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">NIS:</span>
                   <p className="text-gray-600 font-bold text-sm tracking-tight">
-                    226110
+                    {user?.nis_nip ?? 'Tidak tersedia'}
                   </p>
                 </div>
               </div>

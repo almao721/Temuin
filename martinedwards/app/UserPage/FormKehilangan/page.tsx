@@ -1,113 +1,62 @@
-"use client";
+﻿"use client";
 
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Navbar from "../Navbar/Navbar"; 
-import Kategori from "../components/Kategori";
-import FormKehilangan from "../components/FormKehilangan";
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import FormKehilangan from "@/app/UserPage/components/FormKehilangan";
+import Navbar from "@/app/UserPage/Navbar/Navbar";
 
-function FormContent() {
-  const router = useRouter();
+function FormKehilanganContent() {
   const searchParams = useSearchParams();
-  const categoryFromUrl = searchParams.get("category") || "";
-  const [showKategori, setShowKategori] = useState(!categoryFromUrl);
+  const category = searchParams.get("category") || "lainnya";
+
+  // Kapitalisasi huruf pertama agar cocok dengan formConfig
+  const formattedCategory =
+    category.charAt(0).toUpperCase() + category.slice(1).toLowerCase();
 
   return (
-    <>
-      {/* BACKGROUND ANIMASI 3 WARNA */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden bg-[#46141A] -z-10">
-        {/* Bulatan Warna 1: #C26067 */}
-        <div 
-          className="absolute top-[-10%] left-[-5%] w-[800px] h-[800px] rounded-full blur-[120px] opacity-60 animate-mesh-1"
-          style={{ backgroundColor: '#C26067' }}
-        />
-        {/* Bulatan Warna 2: #8B3039 */}
-        <div 
-          className="absolute bottom-[5%] right-[-10%] w-[900px] h-[900px] rounded-full blur-[100px] opacity-50 animate-mesh-2"
-          style={{ backgroundColor: '#8B3039' }}
-        />
-        {/* Bulatan Warna 3: #561C24 */}
-        <div 
-          className="absolute top-[30%] left-[20%] w-[700px] h-[700px] rounded-full blur-[130px] opacity-40 animate-mesh-3"
-          style={{ backgroundColor: '#561C24' }}
-        />
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-[#46141A] via-[#561C24] to-[#46141A]">
+      <Navbar />
 
-      <div className="relative z-10 max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-light text-white uppercase tracking-[0.4em] leading-relaxed">
-            Lapor <span className="font-bold">Kehilangan</span>
-          </h1>
-          
-          <div className="flex justify-center items-center gap-4 mt-4">
-            <div className="h-[1px] w-12 bg-white/30"></div>
-            <span className="text-[11px] tracking-[0.5em] font-bold text-[#C26067] uppercase bg-white/5 px-4 py-1.5 rounded-full border border-[#C26067]/20">
-              {categoryFromUrl ? `KATEGORI: ${categoryFromUrl}` : "Formulir Kehilangan"}
-            </span>
-            <div className="h-[1px] w-12 bg-white/30"></div>
-          </div>
-          
-          <p className="text-white/50 font-medium text-[10px] mt-8 tracking-[0.3em] uppercase">
-            Sampaikan detail barang anda untuk membantu proses pencarian
-          </p>
-        </div>
+      {/* Spacer untuk navbar fixed */}
+      <div className="h-24" />
 
-        <div className="animate-in fade-in slide-in-from-bottom-10 duration-1000 ease-out">
-          <FormKehilangan initialKategori={categoryFromUrl} />
+      {/* HEADER */}
+      <div className="text-center px-5 py-8">
+        <p className="text-white/60 text-sm font-bold uppercase tracking-widest mb-2">
+          Formulir Laporan
+        </p>
+        <h1 className="text-white text-3xl md:text-4xl font-black">
+          Kehilangan Barang
+        </h1>
+        <p className="text-white/70 mt-3 text-sm md:text-base max-w-md mx-auto leading-relaxed">
+          Isi formulir di bawah ini dengan lengkap agar kami dapat membantu
+          menemukan barang kamu.
+        </p>
+
+        {/* Badge kategori */}
+        <div className="inline-block mt-4 bg-white/10 border border-white/20 text-white px-5 py-1.5 rounded-full text-sm font-bold uppercase tracking-wider">
+          Kategori: {formattedCategory}
         </div>
       </div>
 
-      <Kategori 
-        isOpen={showKategori} 
-        onClose={() => setShowKategori(false)} 
-        onSelect={(id) => {
-          setShowKategori(false);
-          router.push(`/UserPage/FormKehilangan?category=${id}`);
-        }}
-      />
-
-      <style jsx global>{`
-        @keyframes mesh-1 {
-          0% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(100px, 50px) scale(1.1); }
-          100% { transform: translate(0, 0) scale(1); }
-        }
-        @keyframes mesh-2 {
-          0% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(-80px, -100px) scale(1.2); }
-          100% { transform: translate(0, 0) scale(1); }
-        }
-        @keyframes mesh-3 {
-          0% { transform: translate(0, 0) scale(1.2); }
-          50% { transform: translate(50px, -50px) scale(0.9); }
-          100% { transform: translate(0, 0) scale(1.2); }
-        }
-        .animate-mesh-1 {
-          animation: mesh-1 12s infinite ease-in-out;
-        }
-        .animate-mesh-2 {
-          animation: mesh-2 15s infinite ease-in-out;
-        }
-        .animate-mesh-3 {
-          animation: mesh-3 18s infinite ease-in-out;
-        }
-      `}</style>
-    </>
+      {/* FORM */}
+      <div className="px-4 pb-24 md:pb-16">
+        <FormKehilangan initialKategori={formattedCategory} />
+      </div>
+    </div>
   );
 }
 
-export default function Page() {
+export default function FormKehilanganPage() {
   return (
-    <main className="relative min-h-screen bg-[#46141A] pt-32 pb-20 px-5 overflow-hidden">
-      <Navbar />
-      <Suspense fallback={
-        <div className="flex flex-col items-center justify-center pt-32 gap-4">
-          <div className="w-10 h-10 border-2 border-white/10 border-t-[#C26067] rounded-full animate-spin"></div>
-          <p className="text-white font-light tracking-[0.3em] opacity-50 text-[10px]">MENYIAPKAN FORMULIR...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-b from-[#46141A] to-[#561C24] flex items-center justify-center">
+          <div className="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin" />
         </div>
-      }>
-        <FormContent />
-      </Suspense>
-    </main>
+      }
+    >
+      <FormKehilanganContent />
+    </Suspense>
   );
 }

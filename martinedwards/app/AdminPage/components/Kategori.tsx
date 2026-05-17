@@ -10,6 +10,8 @@ import {
   Save,
 } from "lucide-react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function Kategori() {
   const [selectedKategori, setSelectedKategori] =
     useState<any>(null);
@@ -22,6 +24,8 @@ export default function Kategori() {
 
   const [selectedDelete, setSelectedDelete] =
     useState<any>(null);
+
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const lokasiOptions = [
     "Gedung A Lantai 1",
@@ -263,6 +267,50 @@ export default function Kategori() {
         ],
       },
     ]);
+    
+
+  // Fungsi simpan pertanyaan ke backend
+  const simpanPertanyaanKeBackend = async (namaKategori: string, pertanyaan: any[]) => {
+    const token = getToken();
+    if (!token) {
+      alert('Token tidak ditemukan, silakan login ulang');
+      return false;
+    }
+
+    try {
+      // Cari kategori_id berdasarkan nama
+      const cariResponse = await fetch(`${API_BASE}/api/admin/kategori`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const cariResult = await cariResponse.json();
+      
+      let kategoriId = null;
+      if (cariResult.success && Array.isArray(cariResult.data)) {
+        const found = cariResult.data.find((k: any) => k.nama === namaKategori);
+        if (found) kategoriId = found.id;
+      }
+
+      if (!kategoriId) {
+        // Jika tidak ditemukan di backend, simpan hanya di frontend
+        return true;
+      }
+
+      const response = await fetch(`${API_BASE}/api/admin/kategori/${kategoriId}/pertanyaan`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ pertanyaan })
+      });
+      
+      const result = await response.json();
+      return result.success;
+    } catch (error) {
+      console.error('Gagal simpan ke backend:', error);
+      return false;
+    }
+  };
 
   const hapusKategori = (nama: string) => {
     setKategoriData(
@@ -270,7 +318,6 @@ export default function Kategori() {
         (item) => item.nama !== nama
       )
     );
-
     setOpenDelete(false);
   };
 
@@ -280,12 +327,26 @@ export default function Kategori() {
     value: string
   ) => {
     const updated = [...kategoriData];
-
     updated[kategoriIndex].pertanyaan[
       pertanyaanIndex
     ].value = value;
-
     setKategoriData(updated);
+  };
+
+  const handleSimpanPertanyaan = async () => {
+    if (selectedKategori && selectedKategori.index !== undefined) {
+      const namaKategori = selectedKategori.nama;
+      const pertanyaanBaru = selectedKategori.pertanyaan;
+      
+      await simpanPertanyaanKeBackend(namaKategori, pertanyaanBaru);
+      
+      // Update state kategoriData
+      const updatedKategoriData = [...kategoriData];
+      updatedKategoriData[selectedKategori.index].pertanyaan = pertanyaanBaru;
+      setKategoriData(updatedKategoriData);
+      
+      setOpenPertanyaan(false);
+    }
   };
 
   return (
@@ -556,9 +617,7 @@ export default function Kategori() {
               </div>
 
               <button
-                onClick={() =>
-                  setOpenPertanyaan(false)
-                }
+                onClick={handleSimpanPertanyaan}
                 className="mt-7 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#651A27] py-4 text-sm font-semibold text-white shadow-lg duration-300 hover:scale-[1.02]"
               >
                 <Save size={18} />

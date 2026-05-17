@@ -12,6 +12,8 @@ import {
   UserPlus,
 } from "lucide-react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
 export default function Pengguna() {
   const [search, setSearch] = useState("");
 
@@ -35,6 +37,8 @@ export default function Pengguna() {
 
   const [selectedUser, setSelectedUser] =
     useState<any>(null);
+
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const [users, setUsers] = useState([
     {
@@ -102,49 +106,132 @@ export default function Pengguna() {
     });
   }, [users, search, filterStatus]);
 
-  const tambahUser = () => {
+  const tambahUser = async () => {
     if (
       !formData.nama ||
       !formData.nisnip ||
       !formData.password
-    )
+    ) {
+      alert('Semua field wajib diisi');
       return;
+    }
 
-    const newUser = {
-      id: Date.now(),
-      ...formData,
-    };
+    const token = getToken();
+    if (!token) {
+      alert('Token tidak ditemukan, silakan login ulang');
+      return;
+    }
 
-    setUsers([newUser, ...users]);
-
-    setFormData({
-      nama: "",
-      nisnip: "",
-      password: "",
-      status: "Siswa",
-      kelas: "",
-    });
-
-    setOpenTambah(false);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/siswa`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nis_nip: formData.nisnip,
+          password: formData.password
+        })
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        alert('Pengguna berhasil ditambahkan');
+        
+        const newUser = {
+          id: result.data?.user_id || Date.now(),
+          nama: formData.nama,
+          nisnip: formData.nisnip,
+          password: formData.password,
+          status: formData.status,
+          kelas: formData.kelas || "-",
+        };
+        
+        setUsers([newUser, ...users]);
+        setFormData({
+          nama: "",
+          nisnip: "",
+          password: "",
+          status: "Siswa",
+          kelas: "",
+        });
+        setOpenTambah(false);
+      } else {
+        alert(result.message || 'Gagal menambah pengguna');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menambah pengguna');
+    }
   };
 
-  const editUser = () => {
-    const updated = users.map((user) =>
-      user.id === editData.id
-        ? editData
-        : user
-    );
+  const editUser = async () => {
+    const token = getToken();
+    if (!token) {
+      alert('Token tidak ditemukan, silakan login ulang');
+      return;
+    }
 
-    setUsers(updated);
-
-    setOpenEdit(false);
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/siswa/${editData.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nis_nip: editData.nisnip,
+          is_active: 1
+        })
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        alert('Data pengguna berhasil diupdate');
+        
+        const updated = users.map((user) =>
+          user.id === editData.id
+            ? editData
+            : user
+        );
+        setUsers(updated);
+        setOpenEdit(false);
+      } else {
+        alert(result.message || 'Gagal mengupdate pengguna');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Gagal mengupdate pengguna');
+    }
   };
 
-  const hapusUser = (id: number) => {
-    setUsers(
-      users.filter((user) => user.id !== id)
-    );
+  const hapusUser = async (id: number) => {
+    const token = getToken();
+    if (!token) {
+      alert('Token tidak ditemukan, silakan login ulang');
+      return;
+    }
 
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/siswa/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        alert('Pengguna berhasil dihapus');
+        setUsers(
+          users.filter((user) => user.id !== id)
+        );
+      } else {
+        alert(result.message || 'Gagal menghapus pengguna');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menghapus pengguna');
+    }
     setOpenDelete(false);
   };
 

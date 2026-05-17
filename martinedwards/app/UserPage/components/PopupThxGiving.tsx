@@ -7,7 +7,7 @@ import { CheckCircle2 } from "lucide-react";
 interface PopupProps {
   isOpen: boolean;
   onClose: () => void;
-  duration?: number; // Durasi dalam milidetik (default 5000ms)
+  duration?: number;
 }
 
 export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: PopupProps) {
@@ -16,13 +16,12 @@ export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: Pop
 
   useEffect(() => {
     if (!isOpen) {
-      setProgress(120);
+      setProgress(100);
       return;
     }
 
-    const intervalTime = 50; 
+    const intervalTime = 50;
     const step = (intervalTime / duration) * 100;
-
     const timer = setInterval(() => {
       setProgress((prev) => {
         const nextValue = prev - step;
@@ -40,7 +39,7 @@ export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: Pop
   useEffect(() => {
     if (progress <= 0 && isOpen) {
       onClose();
-      router.push("/");
+      router.push("/UserPage");   // ← PERBAIKAN
     }
   }, [progress, isOpen, onClose, router]);
 
@@ -55,7 +54,6 @@ export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: Pop
               <CheckCircle2 size={70} className="text-[#22C55E]" strokeWidth={3} />
             </div>
           </div>
-          
           <div className="space-y-3">
             <h2 className="text-3xl font-black text-gray-900 tracking-tight text-center">
               Laporan anda telah dikirim!
@@ -67,11 +65,10 @@ export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: Pop
               Mohon menunggu proses verifikasi kami dalam <span className="font-bold text-gray-700">2-4 hari</span>. Anda akan mendapatkan pemberitahuan setelah laporan diverifikasi.
             </p>
           </div>
-
           <button 
             onClick={() => {
               onClose();
-              router.push("/");
+              router.push("/UserPage");   // ← PERBAIKAN
             }}
             className="w-full bg-[#3B82F6] hover:bg-[#2563EB] text-white font-black py-4 rounded-2xl transition-all shadow-lg active:scale-95 text-lg"
           >
@@ -79,10 +76,7 @@ export default function PopupThxGiving({ isOpen, onClose, duration = 5000 }: Pop
           </button>
         </div>
         <div className="h-2 w-full bg-gray-100">
-          <div 
-            className="h-full bg-[#3B82F6] transition-all ease-linear"
-            style={{ width: `${progress}%` }}
-          ></div>
+          <div className="h-full bg-[#3B82F6] transition-all ease-linear" style={{ width: `${progress}%` }}></div>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-const db = require('../src/config/db');  // Sesuaikan path ke db.js
+const db = require('../src/config/db');
 
 const userModel = {
   create: async (userData) => {

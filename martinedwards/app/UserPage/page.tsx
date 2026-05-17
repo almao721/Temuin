@@ -23,7 +23,7 @@ export default function UserPage() {
   return (
     <UserShell isLoggedIn={isLoggedIn}>
       <section id="beranda">
-        <Beranda isLoggedIn={isLoggedIn} />
+        <Beranda />   {/* Prop isLoggedIn dihapus */}
       </section>
 
       <section id="form" className="relative">
@@ -37,7 +37,7 @@ export default function UserPage() {
       </section>
 
       <section id="about">
-        <AboutUs isLoggedIn={isLoggedIn} />
+        <AboutUs />   {/* Prop isLoggedIn dihapus */}
       </section>
     </UserShell>
   );

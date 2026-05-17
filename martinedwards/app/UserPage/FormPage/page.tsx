@@ -14,7 +14,7 @@ export default function FormPage({ isLoggedIn = false }: FormPageProps) {
 
   const handleNavigation = (path: string) => {
     if (!isLoggedIn) {
-      router.push("/Login");
+      router.push("/login");
       return;
     }
 
