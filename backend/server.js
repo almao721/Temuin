@@ -8,44 +8,64 @@ dotenv.config();
 const db = require('./src/config/db');
 global.db = db;
 
-// ── Pastikan kolom schema ada ──────────────────────────────────────────────────
-const ensureSchema = async () => {
+// ── Verifikasi koneksi DB ──────────────────────────────────────────────────────
+const verifyDB = async () => {
   try {
-    const [laporanColumns] = await db.execute("SHOW COLUMNS FROM laporan LIKE 'status'");
-    if (laporanColumns.length === 0) {
-      console.log('🚧 Menambahkan kolom status ke tabel laporan...');
-      await db.execute(
-        "ALTER TABLE laporan ADD COLUMN status ENUM('aktif','selesai','ditolak') NOT NULL DEFAULT 'aktif' AFTER kategori_id"
-      );
+    await db.execute('SELECT 1');
+    console.log('✅ Database terhubung');
+
+    // Pastikan tabel kuisioner_laporan ada
+    const [kuisionerTables] = await db.execute("SHOW TABLES LIKE 'kuisioner_laporan'");
+    if (kuisionerTables.length === 0) {
+      console.log('🚧 Membuat tabel kuisioner_laporan...');
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS kuisioner_laporan (
+          id               INT          NOT NULL AUTO_INCREMENT,
+          laporan_id       INT          NOT NULL UNIQUE,
+          jenis_barang     VARCHAR(100) NOT NULL,
+          warna_barang     VARCHAR(100) DEFAULT NULL,
+          deskripsi_detail TEXT         DEFAULT NULL,
+          brand_merk       VARCHAR(150) DEFAULT NULL,
+          waktu_terakhir   VARCHAR(200) DEFAULT NULL,
+          lokasi_terakhir  VARCHAR(255) DEFAULT NULL,
+          created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          FOREIGN KEY (laporan_id) REFERENCES laporan (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+      `);
     }
 
+    // Pastikan kolom pertanyaan ada di tabel kategori
     const [kategoriColumns] = await db.execute("SHOW COLUMNS FROM kategori LIKE 'pertanyaan'");
     if (kategoriColumns.length === 0) {
       console.log('🚧 Menambahkan kolom pertanyaan ke tabel kategori...');
       await db.execute("ALTER TABLE kategori ADD COLUMN pertanyaan TEXT NULL AFTER icon_url");
     }
 
-    // Pastikan kategori dasar ada
-    const ensureCategoryExists = async (nama_kategori, deskripsi) => {
-      const [rows] = await db.execute(
-        'SELECT id FROM kategori WHERE nama_kategori = ? LIMIT 1',
-        [nama_kategori]
-      );
-      if (rows.length === 0) {
-        await db.execute(
-          'INSERT INTO kategori (nama_kategori, deskripsi, status) VALUES (?, ?, 1)',
-          [nama_kategori, deskripsi]
-        );
-      }
-    };
-    await ensureCategoryExists('Pribadi', 'Barang pribadi seperti dompet, kunci, identitas');
-    await ensureCategoryExists('Kunci', 'Kunci motor, rumah, atau brankas');
+    // Pastikan tabel notifikasi ada
+    const [notifTables] = await db.execute("SHOW TABLES LIKE 'notifikasi'");
+    if (notifTables.length === 0) {
+      console.log('🚧 Membuat tabel notifikasi...');
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS notifikasi (
+          id          INT          NOT NULL AUTO_INCREMENT,
+          user_id     INT          NOT NULL,
+          laporan_id  INT          NOT NULL,
+          pesan       TEXT         NOT NULL,
+          is_read     TINYINT(1)   DEFAULT 0,
+          created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (id),
+          INDEX idx_user_read (user_id, is_read)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+      `);
+      console.log('✅ Tabel notifikasi berhasil dibuat');
+    }
   } catch (error) {
-    console.error('Gagal memeriksa/memperbarui schema awal:', error);
+    console.error('❌ Gagal verifikasi database:', error.message);
   }
 };
 
-ensureSchema();
+verifyDB();
 
 const app  = express();
 const PORT = process.env.PORT || 5000;

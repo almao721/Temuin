@@ -94,9 +94,9 @@ getAll: async ({ tipe, status, kategori_id, tanggal_mulai, tanggal_akhir, search
              COALESCE(p.foto_barang, '')                    AS foto_barang,
              COALESCE(p.waktu_insiden, kh.waktu_insiden)   AS waktu_insiden
       FROM laporan l
-      JOIN lokasi lok  ON l.lokasi_id = lok.id
-      JOIN kategori k  ON l.kategori_id = k.id
-      JOIN user u      ON l.user_id = u.user_id
+      LEFT JOIN lokasi lok  ON l.lokasi_id = lok.id
+      LEFT JOIN kategori k  ON l.kategori_id = k.id
+      LEFT JOIN user u      ON l.user_id = u.user_id
       LEFT JOIN laporan_penemuan p ON l.id = p.laporan_id
       LEFT JOIN laporan_kehilangan kh ON l.id = kh.laporan_id
       WHERE l.tipe_laporan = ?
@@ -113,8 +113,8 @@ getAll: async ({ tipe, status, kategori_id, tanggal_mulai, tanggal_akhir, search
              COALESCE(p.deskripsi, kh.keterangan_lainnya)   AS keterangan,
              COALESCE(p.waktu_insiden, kh.waktu_insiden)    AS waktu_insiden
       FROM laporan l
-      JOIN lokasi lok ON l.lokasi_id = lok.id
-      JOIN kategori k ON l.kategori_id = k.id
+      LEFT JOIN lokasi lok ON l.lokasi_id = lok.id
+      LEFT JOIN kategori k ON l.kategori_id = k.id
       LEFT JOIN laporan_penemuan p ON l.id = p.laporan_id
       LEFT JOIN laporan_kehilangan kh ON l.id = kh.laporan_id
       WHERE l.user_id = ?
@@ -131,9 +131,9 @@ getAll: async ({ tipe, status, kategori_id, tanggal_mulai, tanggal_akhir, search
              p.foto_barang, p.detail_lokasi, p.waktu_insiden AS waktu_penemuan,
              kh.barang_tipe, kh.keterangan_lainnya, kh.waktu_insiden AS waktu_kehilangan
       FROM laporan l
-      JOIN lokasi lok ON l.lokasi_id = lok.id
-      JOIN kategori k ON l.kategori_id = k.id
-      JOIN user u ON l.user_id = u.user_id
+      LEFT JOIN lokasi lok ON l.lokasi_id = lok.id
+      LEFT JOIN kategori k ON l.kategori_id = k.id
+      LEFT JOIN user u ON l.user_id = u.user_id
       LEFT JOIN laporan_penemuan p ON l.id = p.laporan_id
       LEFT JOIN laporan_kehilangan kh ON l.id = kh.laporan_id
       WHERE l.id = ?

@@ -16,6 +16,14 @@ const LokasiModel = {
     return rows[0] || null;
   },
 
+  findByName: async (nama_lokasi) => {
+    const [rows] = await db.execute(
+      'SELECT id, nama_lokasi, tipe_lokasi, icon, status FROM lokasi WHERE LOWER(nama_lokasi) = LOWER(?) LIMIT 1',
+      [nama_lokasi]
+    );
+    return rows[0] || null;
+  },
+
   create: async ({ nama_lokasi, tipe_lokasi, icon }) => {
     const [result] = await db.execute(
       'INSERT INTO lokasi (nama_lokasi, tipe_lokasi, icon) VALUES (?, ?, ?)',

@@ -15,7 +15,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 // ── Status Labels ─────────────────────────────────────────────────────────────
 const statusLabels: Record<string, string> = {
-  aktif:   'Diproses',   // nilai di DB = 'aktif'
+  proses:  'Diproses',   // nilai di DB = 'proses'
   selesai: 'Selesai',
   ditolak: 'Ditolak',
 };
@@ -23,10 +23,10 @@ const statusLabels: Record<string, string> = {
 // ── Normalize Status ke Backend ───────────────────────────────────────────────
 const normalizeStatusToBackend = (status: string): string => {
   const v = String(status).toLowerCase();
-  if (['aktif', 'proses', 'pending', 'diproses'].includes(v)) return 'aktif';
+  if (['proses', 'pending', 'diproses'].includes(v)) return 'proses';
   if (['selesai', 'done', 'completed'].includes(v)) return 'selesai';
   if (['ditolak', 'rejected'].includes(v)) return 'ditolak';
-  return 'aktif';
+  return 'proses';
 };
 
 export default function LaporanKehilangan() {
@@ -55,27 +55,54 @@ export default function LaporanKehilangan() {
   const [lokasiDB, setLokasiDB] = useState<any[]>([]);
   const [kategoriDB, setKategoriDB] = useState<any[]>([]);
 
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
 
   // ── Map Report ──────────────────────────────────────────────────────────────
-  const mapReport = (row: any) => ({
-    id: row.id,
-    barang: row.barang || '-',
-    pelapor: row.pelapor || '-',
-    tanggal: row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-',
-    lokasi: row.lokasi || '-',
-    kategori: row.kategori || '-',
-    status: statusLabels[row.status] || row.status || 'Diproses',
-    score: row.score || '0/0',
-    survey: {
-      q1: row.barang || '-',
-      q2: row.warna_barang || '-',
-      q3: row.deskripsi || '-',
-      q4: row.merek || '-',
-      q5: row.waktu_insiden ? new Date(row.waktu_insiden).toLocaleString('id-ID') : '-',
-      q6: row.lokasi || '-',
-    },
-  });
+  // Parse keterangan_lainnya JSON for display in survey modal
+  const parseKeterangan = (raw: string | null): Record<string, string> => {
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw) || {};
+    } catch {
+      return {};
+    }
+  };
+
+  const mapReport = (row: any) => {
+    const detail = parseKeterangan(row.keterangan_lainnya);
+    // Prioritize kuisioner_laporan data, fall back to JSON-extracted fields, then raw barang
+    const namaBarang = row.jenis_barang || row.barang || detail.nama || detail.jenis || '-';
+    const warnaBarang = row.kuis_warna || row.warna_barang || detail.warna || detail.warna_barang || '-';
+    const merekBarang = row.kuis_merek || row.merek || detail.merek || detail.merk_logo || detail.brand || '-';
+    const lokasiTerakhir = row.kuis_lokasi || row.lokasi_terakhir || detail.lokasi || row.lokasi || '-';
+    const deskripsi = row.deskripsi_detail || detail.ciri || detail.wallpaper || detail.kondisi || detail.deskripsi || '-';
+    const waktuTerakhir = row.waktu_terakhir
+      || (row.waktu_insiden ? new Date(row.waktu_insiden).toLocaleString('id-ID') : '-');
+
+    // Hitung score: berapa field kuisioner yang terisi
+    const surveyFields = [namaBarang, warnaBarang, deskripsi, merekBarang, waktuTerakhir, lokasiTerakhir];
+    const filled = surveyFields.filter(v => v && v !== '-' && v !== 'null' && v !== '').length;
+    const total = surveyFields.length;
+
+    return {
+      id: row.id,
+      barang: namaBarang,
+      pelapor: row.pelapor || '-',
+      tanggal: row.tanggal ? new Date(row.tanggal).toLocaleDateString('id-ID') : '-',
+      lokasi: row.lokasi || '-',
+      kategori: row.kategori || '-',
+      status: statusLabels[row.status] || row.status || 'Diproses',
+      score: `${filled}/${total}`,
+      survey: {
+        q1: namaBarang,
+        q2: warnaBarang,
+        q3: deskripsi,
+        q4: merekBarang === '-' ? '-' : merekBarang,
+        q5: waktuTerakhir,
+        q6: lokasiTerakhir,
+      },
+    };
+  };
 
   // ── Fetch Reports ───────────────────────────────────────────────────────────
   const fetchReports = async () => {
@@ -221,57 +248,66 @@ export default function LaporanKehilangan() {
 
   // ── Tambah Laporan (POST ke API) ────────────────────────────────────────────
   const tambahLaporan = async () => {
-  if (!formData.barang || !formData.pelapor) {
-    alert('Nama barang dan NIS/NIP pelapor wajib diisi');
-    return;
-  }
-
-  const token = getToken();
-  if (!token) { 
-    alert('Silakan login ulang'); 
-    return; 
-  }
-
-  try {
-    const payload = {
-      barang_tipe: formData.barang,
-      kategori_nama: formData.kategori,
-      lokasi_nama: formData.lokasi,
-      waktu_insiden: formData.tanggal ? new Date(formData.tanggal).toISOString() : new Date().toISOString(),
-      detail_data: {
-        warna: formData.warna,
-        deskripsi: formData.deskripsi,
-        merek: formData.merek,
-        pelapor_nis: formData.pelapor
-      }
-    };
-
-    const res = await fetch(`${API_BASE}/api/laporan/kehilangan`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Authorization': `Bearer ${token}` 
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    const result = await res.json();
-    if (result.success) {
-      alert('Laporan berhasil ditambahkan!');
-      setFormData({
-        barang: "", pelapor: "", tanggal: "", lokasi: "",
-        kategori: "Aksesoris", status: "Pending", warna: "", deskripsi: "", merek: "",
-      });
-      setOpenTambah(false);
-      fetchReports();
-    } else {
-      alert(result.message || 'Gagal menambah laporan');
+    if (!formData.barang || !formData.pelapor) {
+      alert('Nama barang dan NIS/NIP pelapor wajib diisi');
+      return;
     }
-  } catch (err: any) {
-    console.error(err);
-    alert(err.message || 'Gagal menambah laporan');
-  }
-};
+
+    const token = getToken();
+    if (!token) { 
+      alert('Silakan login ulang'); 
+      return; 
+    }
+
+    try {
+      // Lookup user_id dari NIS/NIP pelapor
+      const userRes = await fetch(`${API_BASE}/api/admin/siswa?search=${formData.pelapor}&limit=1`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const userData = await userRes.json();
+      const userId = userData?.data?.[0]?.user_id;
+      if (!userId) {
+        alert(`NIS/NIP "${formData.pelapor}" tidak ditemukan di database`);
+        return;
+      }
+
+      const payload = {
+        user_id: userId,
+        barang_tipe: formData.barang,
+        kategori_name: formData.kategori,
+        lokasi_name: formData.lokasi,
+        warna_barang: formData.warna,
+        keterangan_lainnya: formData.deskripsi,
+        brand_merk: formData.merek,
+        waktu_insiden: formData.tanggal ? new Date(formData.tanggal).toISOString() : new Date().toISOString(),
+      };
+
+      const res = await fetch(`${API_BASE}/api/admin/laporan/kehilangan`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      const result = await res.json();
+      if (result.success) {
+        alert('Laporan berhasil ditambahkan!');
+        setFormData({
+          barang: "", pelapor: "", tanggal: "", lokasi: "",
+          kategori: "Aksesoris", status: "Pending", warna: "", deskripsi: "", merek: "",
+        });
+        setOpenTambah(false);
+        fetchReports();
+      } else {
+        alert(result.message || 'Gagal menambah laporan');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Gagal menambah laporan');
+    }
+  };
 
   return (
     <>
@@ -343,15 +379,19 @@ export default function LaporanKehilangan() {
                       <td className="px-4 py-4 text-sm text-gray-700">{report.pelapor}</td>
                       <td className="px-4 py-4 text-sm text-gray-700">{report.lokasi}</td>
                       <td className="px-4 py-4">
-                        <div className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${report.score === "4/6" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                        <div className={`inline-flex rounded-full px-3 py-1 text-xs font-bold cursor-pointer hover:scale-105 transition-transform ${
+                          report.score.startsWith("0/") ? "bg-red-100 text-red-700" :
+                          parseInt(report.score) >= 5 ? "bg-green-100 text-green-700" :
+                          "bg-yellow-100 text-yellow-700"
+                        }`} onClick={() => setSelectedReport(report)}>
                           {report.score}
                         </div>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <div className="flex justify-center">
                           <div className="relative inline-block">
-                            <select value={report.status} onChange={(e) => updateReportStatus(report.id, e.target.value)} className={`appearance-none rounded-full border px-5 py-2 pr-10 text-xs font-bold outline-none ${report.status === "Selesai" ? "border-green-200 bg-green-100 text-green-700" : report.status === "Diproses" ? "border-blue-200 bg-blue-100 text-blue-700" : "border-yellow-200 bg-yellow-100 text-yellow-700"}`}>
-                              <option>Pending</option><option>Diproses</option><option>Selesai</option>
+                            <select value={report.status} onChange={(e) => updateReportStatus(report.id, e.target.value)} className={`appearance-none rounded-full border px-5 py-2 pr-10 text-xs font-bold outline-none ${report.status === "Selesai" ? "border-green-200 bg-green-100 text-green-700" : report.status === "Diproses" ? "border-blue-200 bg-blue-100 text-blue-700" : report.status === "Ditolak" ? "border-red-200 bg-red-100 text-red-700" : "border-yellow-200 bg-yellow-100 text-yellow-700"}`}>
+                              <option>Diproses</option><option>Selesai</option><option>Ditolak</option>
                             </select>
                             <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-700">▼</div>
                           </div>
@@ -438,7 +478,7 @@ export default function LaporanKehilangan() {
                 <option>Semua</option>{categories.filter(c => c !== "Semua").map((item) => <option key={item}>{item}</option>)}
               </select>
               <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full rounded-2xl border border-[#651A27]/15 bg-[#FFFDFD] px-4 py-3 text-sm text-[#2F2F2F] outline-none">
-                <option>Semua</option><option>Pending</option><option>Diproses</option><option>Selesai</option>
+                <option>Semua</option><option>Diproses</option><option>Selesai</option><option>Ditolak</option>
               </select>
               <button onClick={() => setOpenFilter(false)} className="w-full rounded-2xl bg-[#651A27] py-3 text-sm font-semibold text-white">Terapkan Filter</button>
             </div>

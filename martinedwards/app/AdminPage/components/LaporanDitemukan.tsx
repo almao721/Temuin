@@ -51,49 +51,49 @@ export default function LaporanDitemukan() {
     "Mess", "Hati Martin Edwards"
   ];
 
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+
+  const resolvePhoto = (path: string | null) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    return `${API_BASE}${path}`;
+  };
 
   const mapReport = (row: any) => ({
     id: row.id,
-    barang: row.nama_barang || row.barang || '-',
+    barang: row.jenis_barang || row.barang || '-',
     penemu: row.penemu || row.nis_nip || '-',
     tanggal: row.created_at ? new Date(row.created_at).toLocaleDateString('id-ID') : '-',
     lokasi: row.lokasi || '-',
     kategori: row.kategori || '-',
     status: statusLabels[row.status] || row.status || 'Belum Diambil',
     deskripsi: row.deskripsi || '-',
-    foto: row.foto_barang || '',
+    foto: resolvePhoto(row.foto_barang),
   });
 
-const fetchReports = async () => {
-  setLoading(true);
-  try {
-    const token = localStorage.getItem('token');
-    console.log("Token yang dikirim:", token); // Debug
-    
-    const response = await fetch(`${API_BASE}/api/admin/laporan/penemuan?page=1&limit=50`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      }
-    });
-    
-    const payload = await response.json();
-    console.log("Response:", payload);
-    
-    if (!response.ok) throw new Error(payload.message || 'Gagal memuat laporan');
-    
-    const rows = Array.isArray(payload.data) ? payload.data : [];
-    const mapped = rows.map(mapReport);
-    setReports(mapped);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.message || 'Gagal memuat laporan');
-  } finally {
-    setLoading(false);
-  }
-};
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('adminToken');
+      const response = await fetch(`${API_BASE}/api/admin/laporan/penemuan?page=1&limit=50`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message || 'Gagal memuat laporan');
+      const rows = Array.isArray(payload.data) ? payload.data : [];
+      setReports(rows.map(mapReport));
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Gagal memuat laporan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   useEffect(() => {
     fetchReports();
@@ -171,7 +171,7 @@ const fetchReports = async () => {
         body: JSON.stringify({
           nama_barang: formData.barang,
           kategori: formData.kategori,
-          lokasi_nama: formData.lokasi,
+          lokasi_name: formData.lokasi,
           deskripsi: formData.deskripsi,
           foto_barang: formData.foto,
           waktu_insiden: new Date(formData.tanggal).toISOString(),

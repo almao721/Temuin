@@ -2,7 +2,8 @@
 
 import { Send, ChevronDown, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import PopupThxGiving from "../components/PopupThxGiving"; 
+import PopupThxGiving from "../components/PopupThxGiving";
+import { apiLaporKehilangan } from '@/app/lib/api';
 
 const lokasiList = [
   "Gedung A Lantai 1", "Gedung A Lantai 2", "Gedung A Lantai 3",
@@ -120,34 +121,22 @@ export default function FormKehilangan({ initialKategori }: { initialKategori: s
 
     setIsSubmitting(true);
 
-    // Siapkan payload
     const payload = {
-      barang_tipe: initialKategori,
-      lokasi_nama: formData.lokasi || "",
-      waktu_insiden: new Date().toISOString(),
+      kategori_name: initialKategori,
+      barang_tipe: formData.nama || formData.jenis || formData.nama_barang || initialKategori,
+      warna_barang: formData.warna || "",
+      brand_merk: formData.brand || "",
       keterangan_lainnya: JSON.stringify(formData),
+      waktu_insiden: formData.waktu || new Date().toISOString(),
+      lokasi_terakhir: formData.lokasi || "",
     };
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:5000/api/laporan/kehilangan", { // Sesuaikan dengan port backend Anda
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) {
-        setShowPopup(true);
-      } else {
-        const errorText = await response.text();
-        alert(`Gagal menyimpan laporan: ${errorText}`);
-      }
-    } catch (error) {
+      await apiLaporKehilangan(payload as any);
+      setShowPopup(true);
+    } catch (error: any) {
       console.error(error);
-      alert("Gagal terhubung ke server. Pastikan backend berjalan.");
+      alert(error.message || "Gagal terhubung ke server. Pastikan backend berjalan.");
     } finally {
       setIsSubmitting(false);
     }

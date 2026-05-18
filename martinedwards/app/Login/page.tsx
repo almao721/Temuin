@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiLogin } from "../lib/api";
 
-export default function LoginPage() {
+export default function loginPage() {
   const [open, setOpen] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -75,41 +75,37 @@ const handleLogin = async () => {
 
   if (!isValid) return;
 
-  try {
+  // Bersihkan sesi user lama
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  localStorage.removeItem("isLoggedIn");
 
-    // LOGIN KE BACKEND
+  try {
     const res = await apiLogin(userId, password);
 
-    console.log("Login berhasil:", res);
-    console.log("USER DATA:", res.data.user);
+    const userRole = String(res.data?.user?.role || "").toLowerCase();
 
-    // SIMPAN TOKEN
+    // Admin harus login lewat halaman khusus admin
+    if (userRole === "admin" || userRole === "pegawai") {
+      alert("Akun admin harus login melalui halaman Admin Login.\nAnda akan diarahkan ke sana.");
+      setTimeout(() => router.push("/admin-login"), 500);
+      return;
+    }
+
+    // SIMPAN TOKEN USER (bukan admin)
     localStorage.setItem("token", res.data.token);
-
-    // SIMPAN USER
     localStorage.setItem("user", JSON.stringify(res.data.user));
-
-    // STATUS LOGIN
     localStorage.setItem("isLoggedIn", "true");
 
-    // ANIMASI KELUAR
     setOpen(false);
     setIsExiting(true);
 
-    // REDIRECT BERDASARKAN ROLE
-      setTimeout(() => {
-    const userRole = res.data.user.role;
-    if (userRole === 'admin' || userRole === 'pegawai') {
-      router.push("/AdminPage");
-    } else {
-      router.push("/UserPage");
-    }
-  }, 1200);
+    setTimeout(() => router.push("/UserPage"), 1200);
 
   } catch (error: any) {
-
-    console.error(error);
-
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("isLoggedIn");
     alert(error.message || "Login gagal");
   }
 };

@@ -25,7 +25,7 @@ export default function Kategori() {
   const [selectedDelete, setSelectedDelete] =
     useState<any>(null);
 
-  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const getToken = () => typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
 
   const lokasiOptions = [
     "Gedung A Lantai 1",

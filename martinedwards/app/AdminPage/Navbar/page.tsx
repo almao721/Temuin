@@ -22,7 +22,7 @@ export default function Navbar() {
   const router = useRouter();
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
+    const userData = localStorage.getItem("adminUser");
     if (userData) {
       try {
         setUser(JSON.parse(userData));
@@ -68,10 +68,10 @@ export default function Navbar() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    localStorage.removeItem("isLoggedIn");
-    router.push("/login");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+    localStorage.removeItem("adminLoggedIn");
+    router.push("/admin-login");
   };
 
   return (

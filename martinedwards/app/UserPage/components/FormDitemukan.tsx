@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Box, MapPin, Upload, ChevronDown, X, AlignLeft } from "lucide-react";
 import PopupThxGiving from "./PopupThxGiving";
+import { apiGetKategori, apiGetLokasi, apiLaporPenemuan } from '@/app/lib/api';
 
 interface FormErrors {
   nama_barang?: string;
@@ -15,17 +16,60 @@ interface FormErrors {
 
 export default function FormDitemukan() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categories, setCategories] = useState<Array<{ id: number; nama_kategori: string }>>([]);
+  const [lokasiOptions, setLokasiOptions] = useState<Array<{ id: number; nama_lokasi: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const lokasiOptions = [
-    "Gedung A Lantai 1", "Gedung A Lantai 2", "Gedung A Lantai 3",
-    "Gedung B Lantai 1", "Gedung B Lantai 2", "Gedung B Lantai 3",
-    "Gedung C", "Gedung D Lantai 1", "Gedung D Lantai 2", "Gedung D Lantai 3",
-    "Gedung E", "Kantin", "Lapangan Basket", "Lobby", "Parkiran",
-    "Musholla Lantai 1", "Musholla Lantai 2", 
-    "Gerbang Depan SMK Telkom Makassar"
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const kategoriRes = await apiGetKategori();
+        if (kategoriRes.success) setCategories(kategoriRes.data || []);
+      } catch (error) {
+        console.error('Gagal mengambil kategori:', error);
+      }
+      try {
+        const lokasiRes = await apiGetLokasi();
+        if (lokasiRes.success) setLokasiOptions(lokasiRes.data || []);
+      } catch (error) {
+        console.error('Gagal mengambil lokasi:', error);
+      }
+    };
+    loadData();
+  }, []);
+
+  const kategoriOptions = categories.length > 0 ? categories : [
+    { id: 1, nama_kategori: 'Aksesoris' },
+    { id: 2, nama_kategori: 'Elektronik' },
+    { id: 3, nama_kategori: 'Pakaian' },
+    { id: 4, nama_kategori: 'Kunci' },
+    { id: 5, nama_kategori: 'Pribadi' },
+    { id: 6, nama_kategori: 'Lainnya' },
+  ];
+
+  const defaultLokasiOptions = lokasiOptions.length > 0 ? lokasiOptions : [
+    { id: 1, nama_lokasi: 'Gedung A Lantai 1' },
+    { id: 2, nama_lokasi: 'Gedung A Lantai 2' },
+    { id: 3, nama_lokasi: 'Gedung A Lantai 3' },
+    { id: 4, nama_lokasi: 'Gedung B Lantai 1' },
+    { id: 5, nama_lokasi: 'Gedung B Lantai 2' },
+    { id: 6, nama_lokasi: 'Gedung B Lantai 3' },
+    { id: 7, nama_lokasi: 'Gedung C' },
+    { id: 8, nama_lokasi: 'Gedung D Lantai 1' },
+    { id: 9, nama_lokasi: 'Gedung D Lantai 2' },
+    { id: 10, nama_lokasi: 'Gedung D Lantai 3' },
+    { id: 11, nama_lokasi: 'Gedung E' },
+    { id: 12, nama_lokasi: 'Kantin' },
+    { id: 13, nama_lokasi: 'Lapangan Basket' },
+    { id: 14, nama_lokasi: 'Lobby' },
+    { id: 15, nama_lokasi: 'Parkiran' },
+    { id: 16, nama_lokasi: 'Musholla Lantai 1' },
+    { id: 17, nama_lokasi: 'Musholla Lantai 2' },
+    { id: 18, nama_lokasi: 'Gerbang Depan SMK Telkom Makassar' },
   ];
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,21 +78,23 @@ export default function FormDitemukan() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
+        setSelectedFile(file);
         setErrors(prev => ({ ...prev, foto: undefined }));
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    const formEl = e.currentTarget;        // ← simpan sebelum async!
+    const formData = new FormData(formEl);
     const newErrors: FormErrors = {};
 
     if (!formData.get("nama_barang")) newErrors.nama_barang = "Nama barang wajib diisi";
     if (!formData.get("kategori")) newErrors.kategori = "Pilih kategori barang";
     if (!formData.get("deskripsi")) newErrors.deskripsi = "Berikan sedikit deskripsi barang";
-    if (!selectedImage) newErrors.foto = "Foto barang wajib diunggah";
+    if (!selectedImage || !selectedFile) newErrors.foto = "Foto barang wajib diunggah";
     if (!formData.get("lokasi")) newErrors.lokasi = "Pilih lokasi ditemukan";
     if (!formData.get("tanggal")) newErrors.tanggal = "Pilih tanggal ditemukan";
 
@@ -58,7 +104,32 @@ export default function FormDitemukan() {
     }
 
     setErrors({});
-    setIsPopupOpen(true);
+    setIsSubmitting(true);
+
+    try {
+      const payload = new FormData();
+      if (selectedFile) payload.append('foto', selectedFile);
+      payload.append('nama_barang', String(formData.get('nama_barang')));
+      payload.append('kategori_id', String(formData.get('kategori')));
+      payload.append('deskripsi', String(formData.get('deskripsi')));
+      payload.append('lokasi_id', String(formData.get('lokasi')));
+      payload.append('waktu_insiden', String(formData.get('tanggal')));
+
+      const result = await apiLaporPenemuan(payload);
+      if (!result.success) {
+        throw new Error(result.message || 'Gagal menyimpan laporan penemuan');
+      }
+
+      setIsPopupOpen(true);
+      setSelectedImage(null);
+      setSelectedFile(null);
+      formEl.reset();                       // ← gunakan ref yang sudah disimpan
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || 'Gagal terhubung ke server. Pastikan backend berjalan.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -96,11 +167,9 @@ export default function FormDitemukan() {
                     className={`w-full bg-white border-2 rounded-xl px-4 py-3.5 text-sm text-gray-700 appearance-none transition-all cursor-pointer ${errors.kategori ? 'border-red-500' : 'border-gray-200 focus:border-[#46141A] hover:border-[#46141A]'}`}
                   >
                     <option value="" disabled>Pilih Kategori</option>
-                    <option value="aksesoris">Aksesoris</option>
-                    <option value="elektronik">Elektronik</option>
-                    <option value="pakaian">Pakaian</option>
-                    <option value="kunci">Kunci</option>
-                    <option value="lainnya">Lainnya</option>
+                    {kategoriOptions.map((kategori) => (
+                      <option key={kategori.id} value={kategori.id}>{kategori.nama_kategori}</option>
+                    ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-[#46141A]" size={18} />
                 </div>
@@ -140,7 +209,7 @@ export default function FormDitemukan() {
                   <img src={selectedImage} alt="Preview" className="w-full h-full object-cover" />
                   <button 
                     type="button" 
-                    onClick={() => setSelectedImage(null)} 
+                    onClick={() => { setSelectedImage(null); setSelectedFile(null); }} 
                     className="absolute top-3 right-3 bg-[#46141A] text-white p-2 rounded-lg hover:bg-black transition-all"
                   >
                     <X size={18} strokeWidth={2.5} />
@@ -167,8 +236,8 @@ export default function FormDitemukan() {
                     className={`w-full bg-white border-2 rounded-xl px-4 py-3.5 text-sm text-gray-700 appearance-none transition-all cursor-pointer ${errors.lokasi ? 'border-red-500' : 'border-gray-200 focus:border-[#46141A] hover:border-[#46141A]'}`}
                   >
                     <option value="" disabled>Pilih Lokasi Kejadian</option>
-                    {lokasiOptions.map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
+                    {defaultLokasiOptions.map((lokasi) => (
+                      <option key={lokasi.id} value={lokasi.id}>{lokasi.nama_lokasi}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-hover:text-[#46141A]" size={18} />

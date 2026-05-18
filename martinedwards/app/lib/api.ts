@@ -39,15 +39,15 @@ export function getUser(): { user_id: number; nis_nip: string; role: string } | 
 
 // ─── AUTH ─────────────────────────────────────────────────────────────────────
 export async function apiLogin(nis_nip: string, password: string) {
-  const res = await api('/api/auth/login', {
+  const res = await fetch(`${BASE}/api/auth/login`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nis_nip, password }),
   });
-  if (res.success) {
-    localStorage.setItem('token', res.data.token);
-    localStorage.setItem('user',  JSON.stringify(res.data.user));
-  }
-  return res;
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Login gagal');
+  // NOTE: caller harus simpan token sendiri (adminToken atau token)
+  return data;
 }
 
 export async function apiLogout() {
@@ -85,7 +85,7 @@ export async function apiGetLaporanPublik(tipe: 'kehilangan' | 'penemuan') {
 }
 
 export async function apiGetLaporanSaya() {
-  return api('/api/laporan/my');
+  return api('/api/laporan');
 }
 
 export async function apiLaporKehilangan(body: {
@@ -231,6 +231,7 @@ export async function apiAdminTambahPenemuan(body: {
 // ─── AKSI LAPORAN ─────────────────────────────────────────────────────────────
 // PATCH /api/admin/laporan/:id/status   body: { status: 'aktif'|'selesai'|'ditolak' }
 export async function apiAdminUpdateStatus(id: number | string, status: string) {
+  // status: 'proses' | 'selesai' | 'ditolak'
   return api(`/api/admin/laporan/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),

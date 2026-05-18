@@ -43,6 +43,24 @@ const kategoriModel = {
     };
   },
 
+  findByName: async (nama_kategori) => {
+    const [rows] = await db.execute(
+      'SELECT id, nama_kategori, deskripsi, icon_url, pertanyaan, status FROM kategori WHERE LOWER(nama_kategori) = LOWER(?) LIMIT 1',
+      [nama_kategori]
+    );
+    const row = rows[0];
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      nama_kategori: row.nama_kategori,
+      deskripsi: row.deskripsi,
+      icon_url: row.icon_url,
+      status: row.status,
+      pertanyaan: parsePertanyaan(row.pertanyaan),
+    };
+  },
+
   create: async ({ nama_kategori, deskripsi, icon_url }) => {
     const [result] = await db.execute(
       'INSERT INTO kategori (nama_kategori, deskripsi, icon_url, status) VALUES (?, ?, ?, 1)',

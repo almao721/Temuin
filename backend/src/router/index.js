@@ -18,6 +18,29 @@ const db       = require('../config/db');
 
 const router = express.Router();
 
+const parseNumericId = (value) => {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const resolveKategoriId = async (value) => {
+  const numericId = parseNumericId(value);
+  if (numericId) return numericId;
+  if (!value) return null;
+  const kategori = await KategoriModel.findByName(String(value));
+  return kategori?.id || null;
+};
+
+const resolveLokasiId = async (value) => {
+  const numericId = parseNumericId(value);
+  if (numericId) return numericId;
+  if (!value) return null;
+  const lokasi = await LokasiModel.findByName(String(value));
+  return lokasi?.id || null;
+};
+
 // ── Token blacklist (logout) ───────────────────────────────────────────────────
 const tokenBlacklist = new Set();
 
@@ -147,28 +170,118 @@ router.get('/api/laporan', verifyToken, async (req, res) => {
   }
 });
 
+router.get('/api/laporan/type/:tipe', async (req, res) => {
+  try {
+    const tipe = req.params.tipe;
+    if (!['kehilangan', 'penemuan'].includes(tipe))
+      return response.error(res, 'Tipe laporan tidak valid', 400);
+
+    const laporan = await LaporanModel.getByType(tipe);
+    response.success(res, laporan, 'Berhasil mengambil laporan publik');
+  } catch (error) {
+    console.error(error);
+    response.error(res, 'Terjadi kesalahan pada server', 500, error.message);
+  }
+});
+
+// ── NOTIFIKASI ────────────────────────────────────────────────────────────────
+// GET /api/notifikasi — ambil notifikasi milik user yang login
+router.get('/api/notifikasi', verifyToken, async (req, res) => {
+  try {
+    const [rows] = await db.execute(
+      'SELECT id, laporan_id, pesan, is_read, created_at FROM notifikasi WHERE user_id = ? ORDER BY created_at DESC LIMIT 50',
+      [req.user.user_id]
+    );
+    const [[{ unread }]] = await db.execute(
+      'SELECT COUNT(*) AS unread FROM notifikasi WHERE user_id = ? AND is_read = 0',
+      [req.user.user_id]
+    );
+    response.success(res, { notifications: rows, unread }, 'OK');
+  } catch (error) {
+    console.error(error);
+    response.error(res, 'Gagal mengambil notifikasi', 500, error.message);
+  }
+});
+
+// PATCH /api/notifikasi/:id/read — tandai satu notifikasi sudah dibaca
+router.patch('/api/notifikasi/:id/read', verifyToken, async (req, res) => {
+  try {
+    await db.execute(
+      'UPDATE notifikasi SET is_read = 1 WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.user_id]
+    );
+    response.success(res, null, 'Notifikasi ditandai sudah dibaca');
+  } catch (error) {
+    response.error(res, 'Gagal update notifikasi', 500, error.message);
+  }
+});
+
+// PATCH /api/notifikasi/read-all — tandai semua notifikasi sudah dibaca
+router.patch('/api/notifikasi/read-all', verifyToken, async (req, res) => {
+  try {
+    await db.execute(
+      'UPDATE notifikasi SET is_read = 1 WHERE user_id = ? AND is_read = 0',
+      [req.user.user_id]
+    );
+    response.success(res, null, 'Semua notifikasi ditandai sudah dibaca');
+  } catch (error) {
+    response.error(res, 'Gagal update notifikasi', 500, error.message);
+  }
+});
+
 // POST laporan kehilangan (dengan upload foto opsional)
 router.post('/api/laporan/kehilangan', verifyToken, upload.single('foto'), async (req, res) => {
   try {
     const {
-      kategori_id, barang_tipe, warna_barang,
-      keterangan_lainnya, brand_merk, waktu_insiden, lokasi_terakhir,
+      kategori_id, kategori, kategori_name, barang_tipe, lokasi_id,
+      lokasi, lokasi_terakhir, lokasi_name,
+      keterangan_lainnya, waktu_insiden
     } = req.body;
 
-    if (!kategori_id || !barang_tipe)
-      return response.error(res, 'kategori_id dan barang_tipe wajib diisi', 400);
+    const resolvedKategoriId = await resolveKategoriId(kategori_id ?? kategori ?? kategori_name);
+    const resolvedLokasiId = await resolveLokasiId(lokasi_id ?? lokasi ?? lokasi_terakhir ?? lokasi_name);
+
+    if (!resolvedKategoriId || !barang_tipe || !resolvedLokasiId)
+      return response.error(res, 'kategori_id, lokasi_id, dan barang_tipe wajib diisi', 400);
 
     const [laporanResult] = await db.execute(
-      "INSERT INTO laporan (user_id, kategori_id, tipe_laporan, status) VALUES (?, ?, 'kehilangan', 'aktif')",
-      [req.user.user_id, kategori_id]
+      "INSERT INTO laporan (user_id, kategori_id, lokasi_id, tipe_laporan, status) VALUES (?, ?, ?, 'kehilangan', 'proses')",
+      [req.user.user_id, resolvedKategoriId, resolvedLokasiId]
     );
     const laporan_id = laporanResult.insertId;
 
+    // Format waktu_insiden untuk MySQL
+    let waktuFormatted = moment().format('YYYY-MM-DD HH:mm:ss');
+    if (waktu_insiden) {
+      const parsed = moment(waktu_insiden);
+      waktuFormatted = parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : moment().format('YYYY-MM-DD HH:mm:ss');
+    }
+
     await db.execute(`
       INSERT INTO laporan_kehilangan
-        (laporan_id, barang_tipe, warna_barang, keterangan_lainnya, brand_merk, waktu_insiden, lokasi_terakhir)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, [laporan_id, barang_tipe, warna_barang, keterangan_lainnya, brand_merk, waktu_insiden, lokasi_terakhir]);
+        (laporan_id, barang_tipe, keterangan_lainnya, waktu_insiden)
+      VALUES (?, ?, ?, ?)
+    `, [laporan_id, barang_tipe, keterangan_lainnya || '', waktuFormatted]);
+
+    // ── Auto-save kuisioner dari data keterangan_lainnya ──────────────────────
+    try {
+      let kuis = {};
+      try { kuis = JSON.parse(keterangan_lainnya || '{}'); } catch { kuis = {}; }
+      const jenis   = kuis.nama || kuis.jenis || barang_tipe || '';
+      const warna   = kuis.warna || req.body.warna_barang || '';
+      const detail  = kuis.ciri || kuis.deskripsi || kuis.wallpaper || kuis.isi || kuis.kondisi || '';
+      const brand   = kuis.merek || kuis.brand || kuis.merk_logo || req.body.brand_merk || '';
+      const waktu   = kuis.waktu || waktuFormatted;
+      const lok     = kuis.lokasi || req.body.lokasi_terakhir || '';
+
+      await db.execute(`
+        INSERT INTO kuisioner_laporan
+          (laporan_id, jenis_barang, warna_barang, deskripsi_detail, brand_merk, waktu_terakhir, lokasi_terakhir)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [laporan_id, jenis, warna, detail, brand, waktu, lok]);
+    } catch (kuisErr) {
+      console.error('Gagal auto-save kuisioner:', kuisErr.message);
+    }
 
     response.success(res, { laporan_id }, 'Laporan kehilangan berhasil dibuat', 201);
   } catch (error) {
@@ -180,22 +293,27 @@ router.post('/api/laporan/kehilangan', verifyToken, upload.single('foto'), async
 // POST laporan penemuan (dengan upload foto)
 router.post('/api/laporan/penemuan', verifyToken, upload.single('foto'), async (req, res) => {
   try {
-    const { kategori_id, lokasi_id, nama_barang, deskripsi, waktu_insiden } = req.body;
+    const { kategori_id, kategori, kategori_name, lokasi_id, lokasi, lokasi_name, nama_barang, deskripsi, waktu_insiden } = req.body;
     const foto_barang = req.file ? `/uploads/${req.file.filename}` : null;
 
-    if (!kategori_id || !lokasi_id || !nama_barang)
+    const resolvedKategoriId = await resolveKategoriId(kategori_id ?? kategori ?? kategori_name);
+    const resolvedLokasiId = await resolveLokasiId(lokasi_id ?? lokasi ?? lokasi_name);
+
+    if (!resolvedKategoriId || !resolvedLokasiId || !nama_barang)
       return response.error(res, 'kategori_id, lokasi_id, dan nama_barang wajib diisi', 400);
 
     const [laporanResult] = await db.execute(
-      "INSERT INTO laporan (user_id, kategori_id, lokasi_id, tipe_laporan, status) VALUES (?, ?, ?, 'penemuan', 'aktif')",
-      [req.user.user_id, kategori_id, lokasi_id]
+      "INSERT INTO laporan (user_id, kategori_id, lokasi_id, tipe_laporan, status) VALUES (?, ?, ?, 'penemuan', 'proses')",
+      [req.user.user_id, resolvedKategoriId, resolvedLokasiId]
     );
     const laporan_id = laporanResult.insertId;
 
+    // DB: kategori & deskripsi & waktu_insiden are NOT NULL
+    const kategoriNama = (await KategoriModel.findById(resolvedKategoriId))?.nama_kategori || 'lainnya';
     await db.execute(`
-      INSERT INTO laporan_penemuan (laporan_id, nama_barang, deskripsi, foto_barang, waktu_insiden)
-      VALUES (?, ?, ?, ?, ?)
-    `, [laporan_id, nama_barang, deskripsi, foto_barang, waktu_insiden]);
+      INSERT INTO laporan_penemuan (laporan_id, nama_barang, kategori, deskripsi, foto_barang, waktu_insiden)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [laporan_id, nama_barang, kategoriNama, deskripsi || '', foto_barang, waktu_insiden || new Date()]);
 
     response.success(res, { laporan_id }, 'Laporan penemuan berhasil dibuat', 201);
   } catch (error) {

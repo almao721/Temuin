@@ -14,7 +14,7 @@ const adminModel = {
     } else if (timeframe === 'bulan ini') {
       timeCondition = "AND MONTH(l.created_at) = MONTH(CURDATE()) AND YEAR(l.created_at) = YEAR(CURDATE())";
     } else if (timeframe === 'tahun ini') {
-      timeCondition = `AND YEAR(l.created_at) = ${targetTahun}`;
+      timeCondition = `AND YEAR(l.created_at) = ${Number(targetTahun)}`;
     }
 
     let tipeCondition = '';
@@ -24,15 +24,15 @@ const adminModel = {
 
     const [[statsRow]] = await db.execute(`
       SELECT
-        COUNT(*) AS total_laporan,
-        SUM(l.tipe_laporan = 'kehilangan') AS sum_kehilangan,
-        SUM(l.tipe_laporan = 'penemuan') AS sum_ditemukan
+        COUNT(*)                                      AS total_laporan,
+        SUM(l.tipe_laporan = 'kehilangan')            AS sum_kehilangan,
+        SUM(l.tipe_laporan = 'penemuan')              AS sum_ditemukan
       FROM laporan l
       WHERE 1=1 ${timeCondition} ${tipeCondition}
     `);
 
     const [[userRow]] = await db.execute(
-      "SELECT COUNT(*) AS total_pengguna FROM user WHERE role != 'guru' AND is_active = 1"
+      "SELECT COUNT(*) AS total_pengguna FROM user WHERE role != 'admin' AND is_active = 1"
     );
 
     return {
@@ -43,21 +43,44 @@ const adminModel = {
     };
   },
 
-  // ── GRAFIK LAPORAN PER BULAN ───────────────────────────────────────────────
-  getLaporanPerBulan: async ({ tipe, tahun } = {}) => {
-    const targetTahun = tahun || new Date().getFullYear();
+  // ── GRAFIK DUA GARIS (kehilangan vs ditemukan) PER BULAN ──────────────────
+  // Dipakai ControlCenter.tsx LineChart → format: [{ month, kehilangan, ditemukan }]
+  getLaporanPerBulanDua: async ({ tahun } = {}) => {
+    const targetTahun = Number(tahun) || new Date().getFullYear();
 
+    const [rows] = await db.execute(`
+      SELECT
+        MONTH(created_at)                AS bulan,
+        SUM(tipe_laporan = 'kehilangan') AS kehilangan,
+        SUM(tipe_laporan = 'penemuan')   AS ditemukan
+      FROM laporan
+      WHERE YEAR(created_at) = ?
+      GROUP BY MONTH(created_at)
+      ORDER BY bulan ASC
+    `, [targetTahun]);
+
+    const namaBulan = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+    return namaBulan.map((nama, i) => {
+      const found = rows.find(r => r.bulan === i + 1);
+      return {
+        month:      nama,
+        kehilangan: found ? Number(found.kehilangan) : 0,
+        ditemukan:  found ? Number(found.ditemukan)  : 0,
+      };
+    });
+  },
+
+  // ── GRAFIK SATU GARIS (lama, dipertahankan) ───────────────────────────────
+  getLaporanPerBulan: async ({ tipe, tahun } = {}) => {
+    const targetTahun = Number(tahun) || new Date().getFullYear();
     let tipeCondition = '';
     const params = [targetTahun];
     if (tipe && tipe !== 'All') {
       tipeCondition = "AND tipe_laporan = ?";
       params.push(tipe.toLowerCase());
     }
-
     const [rows] = await db.execute(`
-      SELECT
-        MONTH(created_at) AS bulan,
-        COUNT(*) AS total
+      SELECT MONTH(created_at) AS bulan, COUNT(*) AS total
       FROM laporan
       WHERE YEAR(created_at) = ? ${tipeCondition}
       GROUP BY MONTH(created_at)
@@ -71,7 +94,7 @@ const adminModel = {
     });
   },
 
-  // ── LAPORAN KEHILANGAN (admin table) ──────────────────────────────────────
+  // ── LAPORAN KEHILANGAN ────────────────────────────────────────────────────
   getLaporanKehilangan: async ({ search, status, page = 1, limit = 10 } = {}) => {
     let where = "WHERE l.tipe_laporan = 'kehilangan'";
     const params = [];
@@ -81,62 +104,74 @@ const adminModel = {
       const s = `%${search}%`;
       params.push(s, s, s);
     }
-    if (status && status !== 'semua') {
+    if (status && status !== 'semua' && status !== 'Semua') {
       where += " AND l.status = ?";
-      params.push(status);
+      params.push(status.toLowerCase());
     }
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
+    const offset    = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum  = parseInt(limit);
 
-    // HITUNG TOTAL - params untuk COUNT
-    const paramsCount = [...params];
     const [[{ total }]] = await db.execute(`
       SELECT COUNT(*) AS total
       FROM laporan l
-      LEFT JOIN user u ON l.user_id = u.user_id
-      LEFT JOIN kategori k ON l.kategori_id = k.id
-      LEFT JOIN laporan_kehilangan kh ON l.id = kh.laporan_id
+      LEFT JOIN user u                  ON l.user_id     = u.user_id
+      LEFT JOIN kategori k              ON l.kategori_id = k.id
+      LEFT JOIN laporan_kehilangan kh   ON l.id          = kh.laporan_id
       ${where}
-    `, paramsCount);
+    `, [...params]);
 
-    // AMBIL DATA - params untuk DATA (dengan limit/offset)
-    const paramsData = [...params, limitNum, offset];
-    const query = `
+    const [rows] = await db.execute(`
       SELECT
         l.id,
-        COALESCE(kh.barang_tipe, '-') AS barang,
-        COALESCE(u.nis_nip, '-') AS pelapor,
-        l.created_at AS tanggal,
-        COALESCE(lok.nama_lokasi, 'Tidak diketahui') AS lokasi,
-        COALESCE(k.nama_kategori, '-') AS kategori,
+        kh.barang_tipe                        AS kategori_tipe,
+        COALESCE(u.nis_nip, '-')              AS pelapor,
+        l.created_at                          AS tanggal,
+        COALESCE(lok.nama_lokasi, '-')        AS lokasi,
+        COALESCE(k.nama_kategori, '-')        AS kategori,
         l.status,
-        kh.keterangan_lainnya AS deskripsi,
+        kh.keterangan_lainnya,
         kh.waktu_insiden,
-        NULL AS warna_barang,
-        NULL AS merek,
-        NULL AS score
+        COALESCE(
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.nama')), NULL),
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.jenis')), NULL),
+          kh.barang_tipe,
+          k.nama_kategori
+        )                                     AS barang,
+        COALESCE(
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.warna')), NULL),
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.warna_barang')), NULL)
+        )                                     AS warna_barang,
+        COALESCE(
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.merek')), NULL),
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.merk_logo')), NULL),
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.brand')), NULL)
+        )                                     AS merek,
+        COALESCE(
+          IF(JSON_VALID(kh.keterangan_lainnya), JSON_UNQUOTE(JSON_EXTRACT(kh.keterangan_lainnya, '$.lokasi')), NULL),
+          lok.nama_lokasi
+        )                                     AS lokasi_terakhir,
+        kuis.jenis_barang,
+        kuis.warna_barang                     AS kuis_warna,
+        kuis.deskripsi_detail,
+        kuis.brand_merk                       AS kuis_merek,
+        kuis.waktu_terakhir,
+        kuis.lokasi_terakhir                  AS kuis_lokasi
       FROM laporan l
-      LEFT JOIN user u ON l.user_id = u.user_id
-      LEFT JOIN kategori k ON l.kategori_id = k.id
-      LEFT JOIN laporan_kehilangan kh ON l.id = kh.laporan_id
-      LEFT JOIN lokasi lok ON l.lokasi_id = lok.id
+      LEFT JOIN user u                  ON l.user_id     = u.user_id
+      LEFT JOIN kategori k              ON l.kategori_id = k.id
+      LEFT JOIN laporan_kehilangan kh   ON l.id          = kh.laporan_id
+      LEFT JOIN lokasi lok              ON l.lokasi_id   = lok.id
+      LEFT JOIN kuisioner_laporan kuis  ON l.id          = kuis.laporan_id
       ${where}
       ORDER BY l.id DESC
       LIMIT ? OFFSET ?
-    `;
-    const [rows] = await db.execute(query, paramsData);
+    `, [...params, String(limitNum), String(offset)]);
 
-    return {
-      data: rows,
-      total,
-      page: parseInt(page),
-      limit: limitNum,
-      total_pages: Math.ceil(total / limitNum),
-    };
+    return { data: rows, total, page: parseInt(page), limit: limitNum, total_pages: Math.ceil(total / limitNum) };
   },
 
-  // ── LAPORAN DITEMUKAN (admin table) ───────────────────────────────────────
+  // ── LAPORAN DITEMUKAN ─────────────────────────────────────────────────────
   getLaporanPenemuan: async ({ search, status, page = 1, limit = 10 } = {}) => {
     try {
       let where = "WHERE l.tipe_laporan = 'penemuan'";
@@ -147,57 +182,46 @@ const adminModel = {
         const s = `%${search}%`;
         params.push(s, s, s);
       }
-      if (status && status !== 'semua') {
+      if (status && status !== 'semua' && status !== 'Semua') {
         where += " AND l.status = ?";
-        params.push(status);
+        params.push(status.toLowerCase());
       }
 
-      const offset = (parseInt(page) - 1) * parseInt(limit);
+      const offset   = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      // HITUNG TOTAL
-      const paramsCount = [...params];
       const [[{ total }]] = await db.execute(`
         SELECT COUNT(*) AS total
         FROM laporan l
-        LEFT JOIN user u ON l.user_id = u.user_id
-        LEFT JOIN kategori k ON l.kategori_id = k.id
-        LEFT JOIN laporan_penemuan lp ON l.id = lp.laporan_id
+        LEFT JOIN user u              ON l.user_id     = u.user_id
+        LEFT JOIN kategori k          ON l.kategori_id = k.id
+        LEFT JOIN laporan_penemuan lp ON l.id          = lp.laporan_id
         ${where}
-      `, paramsCount);
+      `, [...params]);
 
-      // AMBIL DATA
-      const paramsData = [...params, limitNum, offset];
-      const query = `
+      const [rows] = await db.execute(`
         SELECT
           l.id,
-          COALESCE(lp.nama_barang, '-') AS barang,
-          COALESCE(u.nis_nip, '-') AS penemu,
+          COALESCE(lp.nama_barang, '-')        AS barang,
+          COALESCE(u.nis_nip, '-')             AS penemu,
           l.created_at,
-          COALESCE(lok.nama_lokasi, lp.detail_lokasi, 'Tidak diketahui') AS lokasi,
-          COALESCE(k.nama_kategori, lp.kategori, '-') AS kategori,
+          COALESCE(lok.nama_lokasi, '-')       AS lokasi,
+          COALESCE(k.nama_kategori, '-')       AS kategori,
           l.status,
           lp.deskripsi,
           lp.foto_barang,
           lp.waktu_insiden
         FROM laporan l
-        LEFT JOIN user u ON l.user_id = u.user_id
-        LEFT JOIN kategori k ON l.kategori_id = k.id
-        LEFT JOIN laporan_penemuan lp ON l.id = lp.laporan_id
-        LEFT JOIN lokasi lok ON l.lokasi_id = lok.id
+        LEFT JOIN user u              ON l.user_id     = u.user_id
+        LEFT JOIN kategori k          ON l.kategori_id = k.id
+        LEFT JOIN laporan_penemuan lp ON l.id          = lp.laporan_id
+        LEFT JOIN lokasi lok          ON l.lokasi_id   = lok.id
         ${where}
         ORDER BY l.id DESC
         LIMIT ? OFFSET ?
-      `;
-      const [rows] = await db.execute(query, paramsData);
+      `, [...params, String(limitNum), String(offset)]);
 
-      return {
-        data: rows,
-        total,
-        page: parseInt(page),
-        limit: limitNum,
-        total_pages: Math.ceil(total / limitNum),
-      };
+      return { data: rows, total, page: parseInt(page), limit: limitNum, total_pages: Math.ceil(total / limitNum) };
     } catch (err) {
       console.error('Error getLaporanPenemuan:', err);
       return { data: [], total: 0, page: 1, limit: 10, total_pages: 0 };
@@ -206,101 +230,85 @@ const adminModel = {
 
   // ── UPDATE STATUS LAPORAN ──────────────────────────────────────────────────
   updateStatusLaporan: async (id, status) => {
-    const allowed = ['aktif', 'selesai', 'ditolak'];
-    if (!allowed.includes(status)) throw new Error('Status tidak valid. Gunakan: aktif | selesai | ditolak');
-
-    const [result] = await db.execute(
-      'UPDATE laporan SET status = ? WHERE id = ?',
-      [status, id]
-    );
+    const allowed = ['proses', 'selesai', 'ditolak'];
+    if (!allowed.includes(status)) throw new Error('Status tidak valid. Gunakan: proses | selesai | ditolak');
+    const [result] = await db.execute('UPDATE laporan SET status = ? WHERE id = ?', [status, id]);
     return result;
   },
 
   // ── HAPUS LAPORAN ──────────────────────────────────────────────────────────
   deleteLaporan: async (id) => {
-    await db.execute('DELETE FROM laporan_penemuan WHERE laporan_id = ?', [id]);
+    await db.execute('DELETE FROM laporan_penemuan   WHERE laporan_id = ?', [id]);
     await db.execute('DELETE FROM laporan_kehilangan WHERE laporan_id = ?', [id]);
-    await db.execute('DELETE FROM kuisioner_laporan WHERE laporan_id = ?', [id]).catch(() => {});
+    await db.execute('DELETE FROM kuisioner_laporan  WHERE laporan_id = ?', [id]).catch(() => {});
     const [result] = await db.execute('DELETE FROM laporan WHERE id = ?', [id]);
     return result;
   },
 
   // ── DAFTAR SISWA ──────────────────────────────────────────────────────────
+  // BUG FIX: params WHERE harus ikut ke query data, bukan hanya query COUNT
   getDaftarSiswa: async ({ search, status, page = 1, limit = 10 } = {}) => {
-    let where = "WHERE role = 'siswa'";
+    let where = "WHERE role != 'admin'";
     const params = [];
 
     if (search && search !== '') {
       where += " AND nis_nip LIKE ?";
       params.push(`%${search}%`);
     }
-    
     if (status !== undefined && status !== '' && status !== 'Semua' && status !== 'all') {
       where += " AND is_active = ?";
-      const activeValue = (status === '1' || status === 1 || status === 'active') ? 1 : 0;
-      params.push(activeValue);
+      params.push((status === '1' || status === 1 || status === 'active') ? 1 : 0);
     }
 
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const offset   = (parseInt(page) - 1) * parseInt(limit);
     const limitNum = parseInt(limit);
 
-    // HITUNG TOTAL - params untuk COUNT (tanpa limit/offset)
-    const paramsCount = [...params];
-    const countQuery = `SELECT COUNT(*) AS total FROM user ${where}`;
-    const [countRows] = await db.execute(countQuery, paramsCount);
-    const total = countRows[0]?.total || 0;
+    // COUNT — pakai params WHERE
+    const [[{ total }]] = await db.execute(
+      `SELECT COUNT(*) AS total FROM user ${where}`,
+      [...params]   // ← FIX: params WHERE harus ikut
+    );
 
-    // AMBIL DATA - params untuk DATA (dengan limit/offset)
-    const paramsData = [limitNum, offset];
-    const dataQuery = `
+    // DATA — pakai params WHERE + limit/offset
+    const [rows] = await db.execute(`
       SELECT user_id, nis_nip, role, is_active, created_at
       FROM user
       ${where}
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
-    `;
-    const [rows] = await db.execute(dataQuery, paramsData);
+    `, [...params, String(limitNum), String(offset)]);   // ← FIX: params WHERE + limit/offset
 
-    return {
-      data: rows,
-      total,
-      page: parseInt(page),
-      limit: limitNum,
-      total_pages: Math.ceil(total / limitNum),
-    };
+    return { data: rows, total, page: parseInt(page), limit: limitNum, total_pages: Math.ceil(total / limitNum) };
   },
 
-  // ── REKAP KUISIONER PER KATEGORI ──────────────────────────────────────────
+  // ── REKAP KUISIONER ───────────────────────────────────────────────────────
   getRekapKuisioner: async () => {
     const [rows] = await db.execute(`
       SELECT
         k.nama_kategori AS kategori,
-        COUNT(kl.id) AS total,
+        COUNT(kl.id)    AS total,
         SUM(l.status = 'selesai') AS selesai,
         SUM(l.status != 'selesai' OR l.status IS NULL) AS proses
       FROM kategori k
-      LEFT JOIN laporan l ON k.id = l.kategori_id
-      LEFT JOIN kuisioner_laporan kl ON l.id = kl.laporan_id
+      LEFT JOIN laporan l             ON k.id = l.kategori_id
+      LEFT JOIN kuisioner_laporan kl  ON l.id = kl.laporan_id
       GROUP BY k.id, k.nama_kategori
       ORDER BY total DESC
     `).catch(async () => {
       const [r] = await db.execute(`
-        SELECT
-          k.nama_kategori AS kategori,
-          COUNT(l.id) AS total,
-          SUM(l.status = 'selesai') AS selesai,
-          SUM(l.status != 'selesai' OR l.status IS NULL) AS proses
+        SELECT k.nama_kategori AS kategori, COUNT(l.id) AS total,
+               SUM(l.status = 'selesai') AS selesai,
+               SUM(l.status != 'selesai' OR l.status IS NULL) AS proses
         FROM kategori k
         LEFT JOIN laporan l ON k.id = l.kategori_id
-        GROUP BY k.id, k.nama_kategori
-        ORDER BY total DESC
+        GROUP BY k.id, k.nama_kategori ORDER BY total DESC
       `);
       return r;
     });
     return rows;
   },
 
-  // ── GET /api/admin/kategori - dengan pertanyaan ──────────────────────────
+  // ── KATEGORI DENGAN PERTANYAAN ────────────────────────────────────────────
   getKategoriWithPertanyaan: async () => {
     const [rows] = await db.execute(
       'SELECT id, nama_kategori AS nama, deskripsi, pertanyaan FROM kategori WHERE status = 1 ORDER BY nama_kategori ASC'
@@ -313,7 +321,7 @@ const adminModel = {
     }));
   },
 
-  // ── PUT /api/admin/kategori/:id/pertanyaan ────────────────────────────────
+  // ── UPDATE PERTANYAAN KATEGORI ────────────────────────────────────────────
   updatePertanyaan: async (id, pertanyaan) => {
     const [result] = await db.execute(
       'UPDATE kategori SET pertanyaan = ? WHERE id = ?',
@@ -321,7 +329,6 @@ const adminModel = {
     );
     return result;
   },
-
 };
 
 module.exports = adminModel;
